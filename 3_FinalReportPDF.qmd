@@ -1,0 +1,265 @@
+---
+title: "Untitled"
+format: pdf
+editor: visual
+---
+
+```{r}
+#| label: raw-data
+
+library(tidyverse)
+source("2_DataProcessing.R")
+
+```
+
+```{r}
+#|fig-width: 10
+FracTotRate <- RD %>% filter (year(DT_INTER) == 2022) %>% 
+  group_by(FaixaEtr, DIAG_CAP, DS_CID_CAP) %>%
+  summarize(n = n_distinct(N_AIH), .groups = "keep") %>% 
+  left_join(popSUSBR %>% filter(ano == 2022) %>% group_by(FaixaEtr) %>% summarise(PopSUS = sum(PopSUS)), by = "FaixaEtr") %>%
+  mutate(IndFrac = n*100000/PopSUS)
+
+FracTotRate72 <- RD %>% filter (year(DT_INTER) == 2022) %>%  filter (DIAG_CAP =="S72")%>%
+  group_by(FaixaEtr, DS_CID, DIAG_CAP) %>% summarize(n = n_distinct(N_AIH), .groups = "keep") %>% 
+  left_join(popSUSBR %>% filter(ano == 2022) %>% group_by(FaixaEtr) %>% summarise(PopSUS = sum(PopSUS)), by = "FaixaEtr") %>%
+  mutate(IndFrac = n*100000/PopSUS)
+
+#Hospitalizations by Fracture Type and Age Group (2017) (PORTUGUES)
+FracLabel <- (FracTotRate %>% arrange (desc(n)))[c(1,5,7),]
+p <- ggplot (FracTotRate, aes(x = FaixaEtr, y=n, group = DIAG_CAP,
+                         color = case_when(DIAG_CAP== "S72" ~ "green",
+                                           DIAG_CAP== "S52" ~ "blue",
+                                           DIAG_CAP== "S82" ~ "red",
+                                           FALSE ~ "black")
+                         )) +
+    geom_line(aes(size = replace_na(case_when(DIAG_CAP== "S72" ~ 1.2,
+                                              DIAG_CAP== "S52" ~ 1.2,
+                                              DIAG_CAP== "S82" ~ 1.2,
+                                              FALSE ~ 1),1)))+
+    geom_text(aes(label = DS_CID_CAP), data = FracLabel, nudge_y = 700, nudge_x = c(-1,0,2), color = "black") +
+    labs(title = "Hospitalizações por tipo de Fratura e Faixa Etária (2022)", x = "Faixa Etária", y = "Hospitalizações", caption = "Fonte: SIH-DATASUS") +
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 20, hjust = 1))+
+    scale_colour_discrete(guide = FALSE) +
+    scale_size_continuous(guide = FALSE, limits = c(1,10))
+
+p
+
+p + geom_area(data = FracTotRate72, aes(x = FaixaEtr, y=n, group = DS_CID, fill = DS_CID), position = "stack", stat = "identity", alpha = 0.5) +labs(fill = "Tipo de fratura Femoral")
+  
+
+```
+
+```{r}
+#Hospitalizations RATE by Fracture Type and Age Group (2022) (PORTUGUES)
+FracLabelInd <- FracTotRate %>% arrange (desc(IndFrac)) %>% group_by (DIAG_CAP) %>% filter(DIAG_CAP %in% c("S72", "S52", "S82")) %>% slice (1) 
+
+p <- ggplot (FracTotRate, aes(x = FaixaEtr, y=IndFrac, group = DIAG_CAP,
+                         color = case_when(DIAG_CAP== "S72" ~ "green",
+                                           DIAG_CAP== "S52" ~ "blue",
+                                           DIAG_CAP== "S82" ~ "red",
+                                           FALSE ~ "black")
+)) +
+  geom_line(aes(size = replace_na(case_when(DIAG_CAP== "S72" ~ 1.2,
+                                            DIAG_CAP== "S52" ~ 1.2,
+                                            DIAG_CAP== "S82" ~ 1.2,
+                                            FALSE ~ 1),1)))+
+  geom_text(aes(label = DS_CID_CAP), data = FracLabelInd, nudge_x= c(0,-1,3), nudge_y = c(50, 30, 50), color = "black") +
+  labs(title = "Índice de Hospitalizações (por 100.000 hab) por tipo de Fratura e Faixa Etária (2022)", x = "Faixa Etária", y = "Índice de Hospitalizações (por 100.000 hab.)", caption = "Fonte: SIH-DATASUS, IBGE, ANS") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1))+
+  scale_colour_discrete(guide = FALSE) +
+  scale_size_continuous(guide = FALSE, limits = c(1,10))
+
+p
+```
+
+```{r}
+#|fig-width: 10
+p + geom_area(data = FracTotRate72, aes(x = FaixaEtr, y=IndFrac, group = DS_CID, fill = DS_CID), position = "stack", stat = "identity", alpha = 0.5) +labs(fill = "Tipo de fratura Femoral")
+
+
+```
+
+```{r}
+library(scales)
+PA %>% 
+  group_by(ano) %>% 
+  summarise(nDens = sum(PA_QTDPRO), .groups = "keep") %>% 
+  ggplot(aes(x = ano, y = nDens)) +
+        geom_line(size = 1) +
+        geom_point(size = 3)+
+        theme_bw() + 
+        scale_y_continuous(limits = c(0,600000), labels = comma) +
+        labs(x = "Ano", y = "Número de Densitometrias")
+
+
+RD %>% 
+  filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
+  filter(ano >= 2008) %>% 
+  group_by(ano) %>% 
+  summarise(nFrac = n_distinct(N_AIH), .groups = "keep") %>% 
+  ggplot(aes(x = ano, y = nFrac)) +
+        geom_line(size = 1) +
+        geom_point(size = 3)+
+        theme_bw() +
+        scale_y_continuous(limits = c(0,70000), labels = comma) +
+        labs(x = "Ano", y = "Número de Fraturas")
+
+
+RD %>% 
+  filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
+  filter(ano >= 2008) %>% 
+  group_by(ano, SEXO) %>% 
+  summarise(nFrac = n_distinct(N_AIH), .groups = "keep") %>% 
+  ggplot(aes(x = ano, y = nFrac, color = SEXO)) +
+        geom_line(size = 1) +
+        geom_point(size = 3)+
+        theme_bw() +
+        scale_y_continuous(limits = c(0,40000), labels = comma) +
+        labs(x = "Ano", y = "Número de Fraturas")
+
+
+```
+
+```{r}
+library(forecast)
+
+fracano <- RD %>% 
+  filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
+  filter(ano >= 2008) %>% 
+  group_by(ano) %>% 
+  summarise(nFrac = n_distinct(N_AIH))
+
+
+model <- auto.arima(fracano$nFrac[1:8])
+forecast <- forecast(model)
+forecast<- as.data.frame(forecast)
+
+fracano$nFracPred <- NA
+fracano$nFracPredlo80<- NA
+fracano$nFracPredlo95<- NA
+fracano$nFracPredhi80<- NA
+fracano$nFracPredhi95<- NA
+
+
+fracano$nFracPred[8] <- fracano$nFrac[8]
+fracano$nFracPredlo80[8] <- fracano$nFrac[8]
+fracano$nFracPredlo95[8] <- fracano$nFrac[8]
+fracano$nFracPredhi80[8] <- fracano$nFrac[8]
+fracano$nFracPredhi95[8] <- fracano$nFrac[8]
+fracano$nFracPred[9:15] <- forecast$`Point Forecast`[1:7]
+fracano$nFracPredlo80[9:15] <- forecast$`Lo 80`[1:7]
+fracano$nFracPredlo95[9:15] <- forecast$`Lo 95`[1:7]
+fracano$nFracPredhi80[9:15] <- forecast$`Hi 80`[1:7]
+fracano$nFracPredhi95[9:15] <- forecast$`Hi 95`[1:7]
+
+fracano %>% 
+  ggplot(aes(x = ano, y = nFrac)) +
+        theme_bw() +
+        scale_y_continuous(limits = c(0,70000), labels = comma) +
+        labs(x = "Ano", y = "Número de Fraturas") +
+        geom_ribbon(aes(ymin = nFracPredlo95, ymax = nFracPredhi95), alpha = 0.5, fill = "darkgray") +
+        geom_ribbon(aes(ymin = nFracPredlo80, ymax = nFracPredhi80), alpha = 1, fill = "darkgray") +
+        geom_line(aes(y = nFracPred), color = "blue") +
+        geom_line(size = 1) +
+        geom_point(size = 3) +
+        labs(title = "Número de Fraturas de Quadril", subtitle = "Em comparação com um modelo ARIMA utilizando dados de 2008 a 2015",
+             caption = "Fonte: SIH-SUS")
+        
+
+```
+
+```{r}
+FracTotRateSexo <- RD %>% filter (year(DT_INTER) == 2022) %>% 
+  filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
+  group_by(FaixaEtr, SEXO) %>%
+  summarize(n = n_distinct(N_AIH), .groups = "keep") %>% 
+  left_join(popSUSBR %>% filter(ano == 2022) %>% group_by(FaixaEtr, Sexo) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo")) %>%
+  mutate(IndFrac = n*100000/PopSUS)
+
+FracRate <- ggplot(FracTotRateSexo, aes(x = FaixaEtr, y = if_else(SEXO == "Masculino", -IndFrac,IndFrac), fill = SEXO)) + 
+  geom_bar(data = subset (FracTotRateSexo, SEXO == "Feminino"), stat = "identity") + 
+  geom_bar(data = subset (FracTotRateSexo, SEXO == "Masculino"), stat = "identity") + 
+  scale_y_continuous(labels = abs, limits = max(FracTotRateSexo$IndFrac) * c(-1,1))  + 
+  coord_flip() + 
+  scale_fill_brewer(palette = "Set1") + 
+  theme_bw() +
+  labs(x = "Faixa Etária", y = "Índice de Fraturas de Quadril por 100.000 habitantes", title = "Índice de Fraturas de Quadril por Faixa Etária e Sexo",
+       caption = "Fonte: IBGE, ANS, SIH-SUS (2022)", fill = "Sexo")
+
+FracRate
+
+```
+
+```{r}
+DensTotRateSexo <- PA %>% filter (year(DATA) == 2022) %>% 
+  filter(SEXO != "Indefinido") %>% 
+  group_by(FaixaEtr, SEXO) %>%
+  summarize(n = sum(PA_QTDPRO), .groups = "keep") %>% 
+  left_join(popSUSBR %>% filter(ano == 2022) %>% group_by(FaixaEtr, Sexo) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo")) %>%
+  mutate(IndDens = n*100000/PopSUS)
+
+DensRate <- ggplot(DensTotRateSexo, aes(x = FaixaEtr, y = if_else(SEXO == "Masculino", -IndDens,IndDens), fill = SEXO)) + 
+  geom_bar(data = subset (DensTotRateSexo, SEXO == "Feminino"), stat = "identity") + 
+  geom_bar(data = subset (DensTotRateSexo, SEXO == "Masculino"), stat = "identity") + 
+  scale_y_continuous(labels = abs, limits = max(DensTotRateSexo$IndDens) * c(-1,1))  + 
+  coord_flip() + 
+  scale_fill_brewer(palette = "Set1") + 
+  theme_bw() +
+  labs(x = "Faixa Etária", y = "Índice de Densitometrias Ósseas por 100.000 habitantes", title = "Índice de Densitometrias Ósseas por Faixa Etária e Sexo",
+       caption = "Fonte: IBGE, ANS, SIA-SUS (2022)", fill = "Sexo")
+
+DensRate
+
+
+```
+
+```{r}
+
+DensRateSex <- PA %>% 
+  filter(SEXO != "Indefinido") %>% 
+  group_by(FaixaEtr, SEXO, ano) %>%
+  summarize(n = sum(PA_QTDPRO), .groups = "keep") %>% 
+  left_join(popSUSBR %>% group_by(FaixaEtr, Sexo, ano) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo", "ano")) %>% 
+  filter(as.numeric(word(FaixaEtr))>=60) %>% 
+  group_by(SEXO, ano) %>% 
+  summarise(n = sum(n),
+            PopSUS = sum(PopSUS), .groups = "keep") %>% 
+  mutate(DensRate = n*100000/PopSUS) %>% 
+  pivot_wider(id_cols = ano, names_from = SEXO, values_from = DensRate) %>% 
+  mutate(MaleRateDens = Masculino*100/(Masculino+Feminino))
+
+
+FracRateSex <-RD %>% 
+  filter(SEXO != "Indefinido") %>% 
+  group_by(FaixaEtr, SEXO, ano) %>%
+  summarize(n = n_distinct(N_AIH), .groups = "keep") %>% 
+  left_join(popSUSBR %>% group_by(FaixaEtr, Sexo, ano) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo", "ano")) %>% 
+  filter(as.numeric(word(FaixaEtr))>=60) %>% 
+  group_by(SEXO, ano) %>% 
+  summarise(n = sum(n),
+            PopSUS = sum(PopSUS), .groups = "keep") %>% 
+  mutate(FracRate = n*100000/PopSUS) %>% 
+  pivot_wider(id_cols = ano, names_from = SEXO, values_from = FracRate) %>% 
+  mutate(MaleRateFrac = Masculino*100/(Masculino+Feminino))
+
+
+FracRateSex %>% 
+  select(ano, MaleRateFrac) %>% 
+  left_join(DensRateSex %>% select(ano, MaleRateDens), by = "ano") %>% 
+  filter(ano >=2008) %>% 
+  ggplot(aes(x = ano)) +
+  geom_line(aes(y = MaleRateFrac, color = "Fraturas de Quadril"), size = 1) +
+  geom_point(aes(y = MaleRateFrac, color = "Fraturas de Quadril"), size = 2) +
+  geom_line(aes(y = MaleRateDens, color = "Densitometrias Ósseas"), size = 1) +
+  geom_point(aes(y = MaleRateDens, color = "Densitometrias Ósseas"), size = 2) +
+  scale_y_continuous(limits = c(0,45)) +
+  labs(x = "Ano", y = "Percentual em Homens", colour = "", title = "Percentual de Fraturas de Quadril e Densitometrias Ósseas em homens",
+       subtitle = "Considerando eventos apenas em pessoas com mais de 60 anos de idade",
+       caption = "Fonte: SIA-SUS, SIH-SUS, IBGE, ANS (2008-2022)") +
+  theme_classic()
+  
+
+```
