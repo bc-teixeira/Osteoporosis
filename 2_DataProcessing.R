@@ -21,8 +21,8 @@ RD <- RD %>% left_join(fxet, by = c("IDADE" = "Idade"))
 #Add Fields to RD
 RD$DT_INTER <- ymd(RD$DT_INTER)
 RD$ano <- year(RD$DT_INTER)
-levels(RD$SEXO) <- c("Masculino", "Feminino")
-RD$SEXO <- fct_relevel(RD$SEXO, "Feminino")
+levels(RD$SEXO) <- c("Male", "Female")
+RD$SEXO <- fct_relevel(RD$SEXO, "Female")
 
 #PROC_DS
 tbProc <- read_excel("aux_datasus2.xlsx", sheet = "Procedimentos")
@@ -35,8 +35,8 @@ rm(X)
 PA$DATA <- ymd(paste0(PA$DATA, "01"))
 PA$ano <- year(PA$DATA)
 PA$SEXO <- factor(PA$SEXO)
-levels(PA$SEXO) <- c("Indefinido", "Feminino", "Masculino")
-PA$SEXO <- fct_relevel(PA$SEXO, "Feminino")
+levels(PA$SEXO) <- c("Undefined", "Female", "Male")
+PA$SEXO <- fct_relevel(PA$SEXO, "Female")
 
 fxet <- read_excel("aux_datasus2.xlsx", 
                    sheet = "FaixaEtaria")
@@ -53,6 +53,7 @@ popSUS <- left_join(popmunicbr, popANS, by = c("ano", "Sexo", "CD_MUNIC", "Faixa
   replace_na(list(Pop = 0, PopPlS = 0)) %>%
   mutate(PopSUS = ifelse(Pop - PopPlS < 0, 0, Pop - PopPlS))
 
+levels(popSUS$Sexo) <- c("Female", "Male")
 
 #Total Brazilian population
 popBras <- popmunicbr %>% group_by(ano, Sexo, FaixaEtr) %>% summarise(Pop = sum(Pop, na.rm = TRUE), .groups = "keep")
@@ -65,7 +66,9 @@ popSUSBR <- left_join(popBras, popBrasPlS, by = c("ano", "Sexo", "FaixaEtr")) %>
   mutate(PopSUS = Pop.x - Pop.y, CobSUS = (Pop.x - Pop.y)/Pop.x) %>%
   select(ano, Sexo, FaixaEtr, PopSUS, CobSUS)
 
-popBrasPlS %>% filter(ano == 2022)
+levels(popSUSBR$Sexo) <- c("Female", "Male")
+
+#popBrasPlS %>% filter(ano == 2022)
 
 
 
@@ -91,3 +94,7 @@ UF_MUN <- read_excel("aux_datasus2.xlsx",
 EQ <- EQ %>% 
   mutate(CD_MUN = as.numeric(CD_MUN)) %>% 
   left_join(UF_MUN, by = "CD_MUN")
+
+levels(popSUSBR$FaixaEtr)
+
+
