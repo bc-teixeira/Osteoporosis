@@ -1,13 +1,49 @@
 library(tidyverse)
 library(readxl)
+library(readr)
 
 load("PA.RData")
 load("RD.RData")
 load("EQ.RData")
 
-#downloaded from https://www.ans.gov.br/anstabnet/cgi-bin/dh?dados/tabnet_02.def and http://tabnet.datasus.gov.br/cgi/deftohtm.exe?ibge/cnv/popsvsbr.def in 04/08/2023
-#save(popmunicbr, popANS, file = "popIBGEANS.RData")
-load(file = "popIBGEANS.RData")
+#ANS population downloaded in 23/11/2024 from https://www.ans.gov.br/anstabnet/cgi-bin/tabnet?dados/tabnet_br.def
+popANSMasc <- read_delim("Populations/A18233310_22_1_196.csv",
+                        delim = ";", escape_double = FALSE, trim_ws = TRUE, 
+                        name_repair = "universal",
+                        skip = 4)
+
+popANSFem <- read_delim("Populations/A18241310_22_1_196.csv",
+                         delim = ";", escape_double = FALSE, trim_ws = TRUE, 
+                         name_repair = "universal",
+                         skip = 4)
+
+#Create ANS Popuation data
+popANSMasc <- popANSMasc %>% 
+  pivot_longer(cols = -1, names_to = "ano", values_to = "pop") %>%
+  mutate(ano = as.numeric(str_replace(ano, "Jun", "20"))) %>%  #str replace "Jun" to 20 in ano
+  mutate(FaixaEtr = as.factor(Faixa.etaria)) %>% 
+  #merge groups FxEtaria when is "Ate 1 ano" and "1 a 4 anos" per ano 
+  mutate(FaixaEtr = fct_recode(FaixaEtr, "0 a 4 anos" = "Ate 1 ano", "0 a 4 anos" = "1 a 4 anos")) %>%
+  mutate(FaixaEtr = fct_relevel(FaixaEtr, "5 a 9 anos", after = 1)) %>% 
+  group_by(ano, FaixaEtr) %>%
+  summarise(PopANS = sum(pop), .groups = "keep") %>% 
+  mutate(Sexo = "Male")
+
+popANSFem <- popANSFem %>% 
+  pivot_longer(cols = -1, names_to = "ano", values_to = "pop") %>%
+  mutate(ano = as.numeric(str_replace(ano, "Jun", "20"))) %>%  #str replace "Jun" to 20 in ano
+  mutate(FaixaEtr = as.factor(Faixa.etaria)) %>% 
+  #merge groups FxEtaria when is "Ate 1 ano" and "1 a 4 anos" per ano 
+  mutate(FaixaEtr = fct_recode(FaixaEtr, "0 a 4 anos" = "Ate 1 ano", "0 a 4 anos" = "1 a 4 anos")) %>%
+  mutate(FaixaEtr = fct_relevel(FaixaEtr, "5 a 9 anos", after = 1)) %>% 
+  group_by(ano, FaixaEtr) %>%
+  summarise(PopANS = sum(pop), .groups = "keep")%>% 
+  mutate(Sexo = "Female")
+
+popANS <- bind_rows(popANSFem, popANSMasc) %>% 
+  mutate(Sexo = factor(Sexo),
+         Sexo = fct_relevel(Sexo, "Female")) 
+rm(popANSMasc, popANSFem)
 
 
 
@@ -16,9 +52,26 @@ fxet <- read_excel("aux_datasus2.xlsx",
                    sheet = "FaixaEtaria")
 fxet$FaixaEtr <- as.factor(fxet$FaixaEtr)
 fxet$FaixaEtr <- fct_relevel(fxet$FaixaEtr, "5 a 9 anos", after = 1)
-RD <- RD %>% left_join(fxet, by = c("IDADE" = "Idade"))
+
+#IBGE Data downloaded from https://ftp.ibge.gov.br/Projecao_da_Populacao/Projecao_da_Populacao_2024/projecoes_2024_tab1_idade_simples.xlsx in 23/11/2024
+popIBGE <- read_excel("Populations/projecoes_2024_tab1_idade_simples.xlsx", 
+                      skip = 5) %>% 
+  filter(SIGLA == "BR", SEXO %in% c("Homens", "Mulheres")) %>% 
+  pivot_longer(cols = c(6:ncol(.)), names_to = "ano", values_to = "pop") %>%
+  select(1,2,6,7) %>% 
+  left_join(fxet, by = c("IDADE" = "Idade")) %>%
+  mutate(Sexo = factor(SEXO, levels = c("Homens", "Mulheres"), labels = c("Male", "Female")),
+         Sexo = fct_relevel(Sexo, "Female")) %>%
+  group_by(ano, FaixaEtr, Sexo) %>%
+  summarise(PopIBGE = sum(pop), .groups = "keep") %>% 
+  mutate(ano = as.numeric(ano)) %>% 
+  filter(ano >= 2008) 
+
 
 #Add Fields to RD
+RD <- RD %>% left_join(fxet, by = c("IDADE" = "Idade"))
+
+
 RD$DT_INTER <- ymd(RD$DT_INTER)
 RD$ano <- year(RD$DT_INTER)
 levels(RD$SEXO) <- c("Male", "Female")
@@ -48,29 +101,13 @@ PA <- PA %>% mutate(IDADE = as.numeric(IDADE)) %>%  left_join(fxet, by = c("IDAD
 #DEFINIÇÃO DE POPULAÇÃO SUS    
 #Population in SUS by City, Age Group and Gender
 # Population - Population with health plans (if negative then 0)
-popSUS <- left_join(popmunicbr, popANS, by = c("ano", "Sexo", "CD_MUNIC", "FaixaEtr")) %>%
-  select(ano, Sexo, CD_MUNIC, FaixaEtr, Pop = Pop.x, PopPlS = Pop.y) %>%
-  replace_na(list(Pop = 0, PopPlS = 0)) %>%
-  mutate(PopSUS = ifelse(Pop - PopPlS < 0, 0, Pop - PopPlS))
-
-levels(popSUS$Sexo) <- c("Female", "Male")
-
-#Total Brazilian population
-popBras <- popmunicbr %>% group_by(ano, Sexo, FaixaEtr) %>% summarise(Pop = sum(Pop, na.rm = TRUE), .groups = "keep")
-
-#Total Brazilian Population with Private Health Insurance
-popBrasPlS <- popANS %>% group_by(ano, Sexo, FaixaEtr) %>% summarise(Pop = sum(Pop, na.rm = TRUE), .groups = "keep")
-
-#Total Brazilian Population without Private Health Insurance
-popSUSBR <- left_join(popBras, popBrasPlS, by = c("ano", "Sexo", "FaixaEtr")) %>%
-  mutate(PopSUS = Pop.x - Pop.y, CobSUS = (Pop.x - Pop.y)/Pop.x) %>%
-  select(ano, Sexo, FaixaEtr, PopSUS, CobSUS)
-
-levels(popSUSBR$Sexo) <- c("Female", "Male")
-
-#popBrasPlS %>% filter(ano == 2022)
-
-
+popSUSBR <- left_join(popANS, popIBGE, by = c("ano", "Sexo", "FaixaEtr")) %>%
+  select(ano, Sexo, FaixaEtr, PopIBGE  , PopANS) %>%
+  replace_na(list(PopANS  = 0, PopIBGE = 0)) %>%
+  mutate(PopSUS = ifelse(PopIBGE - PopANS < 0, 0, PopIBGE - PopANS)) %>% 
+  filter(FaixaEtr != "Inconsistente" & FaixaEtr != "Total") %>% 
+  #eliminate unused factor levels
+  droplevels()
 
 rm(fxet)
 
@@ -95,6 +132,6 @@ EQ <- EQ %>%
   mutate(CD_MUN = as.numeric(CD_MUN)) %>% 
   left_join(UF_MUN, by = "CD_MUN")
 
-levels(popSUSBR$FaixaEtr)
+
 
 
