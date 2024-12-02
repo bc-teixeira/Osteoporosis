@@ -77,6 +77,9 @@ RD$ano <- year(RD$DT_INTER)
 levels(RD$SEXO) <- c("Male", "Female")
 RD$SEXO <- fct_relevel(RD$SEXO, "Female")
 
+#Filter RD until 2022
+RD <- RD %>% filter(ano <= 2022)
+
 #PROC_DS
 tbProc <- read_excel("aux_datasus2.xlsx", sheet = "Procedimentos")
 X <- RD %>% 
@@ -90,6 +93,9 @@ PA$ano <- year(PA$DATA)
 PA$SEXO <- factor(PA$SEXO)
 levels(PA$SEXO) <- c("Undefined", "Female", "Male")
 PA$SEXO <- fct_relevel(PA$SEXO, "Female")
+
+#Filter PA until 2022
+PA <- PA %>% filter(ano <= 2022)
 
 fxet <- read_excel("aux_datasus2.xlsx", 
                    sheet = "FaixaEtaria")
@@ -130,8 +136,15 @@ UF_MUN <- read_excel("aux_datasus2.xlsx",
                    sheet = "UFMUN")
 EQ <- EQ %>% 
   mutate(CD_MUN = as.numeric(CD_MUN)) %>% 
-  left_join(UF_MUN, by = "CD_MUN")
+  left_join(UF_MUN, by = "CD_MUN") %>% 
+  filter(DATA <= "2022-12-31")
 
+#transform PAm RD and EQ in tibbles 
+RD <- as_tibble(RD)
+PA <- as_tibble(PA)
+EQ <- as_tibble(EQ)
 
-
+std_WHO <- read_excel("Populations/StdPopulation.xlsx", 
+           sheet = "Planilha2") %>% 
+           tibble()
 

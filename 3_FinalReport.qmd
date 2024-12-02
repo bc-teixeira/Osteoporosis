@@ -23,6 +23,7 @@ fig-asp: 0.618
 #| label: raw-data
 #| echo: false
 
+
 library(tidyverse)
 library(forecast)
 library(scales)
@@ -32,35 +33,41 @@ source("2_DataProcessing.R")
 
 ```
 
-# Methods: 
+# Methods:
 
 **Database:**
 
-The population data for Brazil was obtained from the Brazilian Ministry of Health's website [http://tabnet.datasus.gov.br/cgi/deftohtm.exe?ibge/cnv/popsvsbr.def]. This publicly accessible source offers a detailed overview of the country's demographic information.
+The population data for Brazil was obtained from the Brazilian Ministry of Health's website \[http://tabnet.datasus.gov.br/cgi/deftohtm.exe?ibge/cnv/popsvsbr.def\]. This publicly accessible source offers a detailed overview of the country's demographic information.
 
-Separately, data pertaining to the national private health insurance was sourced from the website of the National Supplementary Health Agency (ANS) [https://www.ans.gov.br/anstabnet/cgi-bin/dh?dados/tabnet_02.def], the body responsible for the regulation and supervision of the private health insurance sector in Brazil.
+Separately, data pertaining to the national private health insurance was sourced from the website of the National Supplementary Health Agency (ANS) \[https://www.ans.gov.br/anstabnet/cgi-bin/dh?dados/tabnet_02.def\], the body responsible for the regulation and supervision of the private health insurance sector in Brazil.
 
-Data related to densitometries and hospitalizations were retrieved from two distinct platforms maintained by the Brazilian Ministry of Health. The Ambulatory Information System (SIA-SUS) provided the densitometry data, while the Hospital Information System (SIH-SUS) supplied data on hospitalizations [https://datasus.saude.gov.br/transferencia-de-arquivos/].
+Data related to densitometries and hospitalizations were retrieved from two distinct platforms maintained by the Brazilian Ministry of Health. The Ambulatory Information System (SIA-SUS) provided the densitometry data, while the Hospital Information System (SIH-SUS) supplied data on hospitalizations \[https://datasus.saude.gov.br/transferencia-de-arquivos/\].
 
 **Data Processing:**
 
-Upon retrieval, the data from both SIA-SUS and SIH-SUS were processed to isolate cases of fractures. This was accomplished by applying a regular expression (regex) pattern to the ICD-10 codes in the datasets. The pattern used was "^S.{1}2.{0,1}$", designed to match specific codes corresponding to fracture hospitalizations.
+Upon retrieval, the data from both SIA-SUS and SIH-SUS were processed to isolate cases of fractures. This was accomplished by applying a regular expression (regex) pattern to the ICD-10 codes in the datasets. The pattern used was `^S.{1}2.{0,1}$`, designed to match specific codes corresponding to fracture hospitalizations.
 
 In constructing the denominator for the subsequent analysis, we considered the total population and subtracted the population covered by private health insurance. This assumption is based on the premise that individuals with private insurance would not utilize the public healthcare system for their healthcare needs.
 
 **Statirtical Analysis**
+
 For the prediction of hip fractures over the next seven years, we employed the auto.arima function from the forecast package in R. This function uses the auto-regressive integrated moving average (ARIMA) model to predict future data points on a time series. The predicted number of hip fractures was then compared with the actual recorded figures.
 
 **Code lists**
+
 ICD codes used to filter (subcodes where also used).
+
 ```{r}
+#| label: icd-codes
 CID %>% 
   filter(grepl(CD_COD, pattern = "^S.{1}2.{0,1}$") & CID == CID_GRUPO) %>% 
   select('ICD Code' =  CD_COD, 'ICD Group' = CID_GRUPO)
 ```
 
 Specific to hip fracture, the codes used were:
+
 ```{r}
+#| label: icd-codes-fracture
 CID %>% 
   filter(CD_COD %in% c("S720","S721","S722")) %>% 
   select('ICD Code' =  CD_COD, 'ICD Description' = CID)
@@ -70,6 +77,7 @@ CID %>%
 To identify procedures that would uniquely identify a fracture, we have used the following list of procedures codes:
 
 ```{r}
+#| label: unique_procedures
 FiltraProc %>% 
   mutate(IP_COD = as.numeric(Procedimentos)) %>% 
   left_join(tbProc %>% mutate(IP_COD = as.numeric(IP_COD)), by = "IP_COD") %>% 
@@ -77,11 +85,14 @@ FiltraProc %>%
 ```
 
 # Results
-## General Fractures and Age
-::: {.panel-tabset}
 
+## General Fractures and Age
+
+::: panel-tabset
 ### Total
+
 ```{r}
+#| label: total-fracture
 #|fig-width: 10
 FracTotRate <- RD %>% filter (year(DT_INTER) == 2022) %>% 
   group_by(FaixaEtr, DIAG_CAP, DS_CID_CAP) %>%
@@ -115,7 +126,7 @@ p <- ggplot (FracTotRate, aes(x = FaixaEtr, y=n, group = DIAG_CAP,
                                               FALSE ~ 1),1)))+
     geom_text(aes(label = DS_CID_CAP_en), data = FracLabel, nudge_y = 700, nudge_x = c(-2,0,2), color = "black") +
     labs(title = "Hospitalizations by type of Fracture and Age Group (2022)", x = "Age Group", y = "Hospitalizations", caption = "Source: SIH-DATASUS") +
-    theme_bw() +
+      theme_bw() +
     theme(axis.text.x = element_text(angle = 20, hjust = 1))+
     scale_colour_discrete(guide = FALSE) +
      scale_linewidth_continuous(guide = "none", limits = c(1,10))
@@ -124,10 +135,11 @@ p
 
 download_this(p, output_extension = "svg")
 ```
+
 The three most frequent fracture types for hospitalizations are Femur, Leg including ankle, and forearm. They significantly vary across age groups. But clearly, the most frequent fracture causing hospitalizations, even in absolute number, is femoral fractures in the elderly.
 
-
 ```{r}
+#| label: total-fracture-detailed
 FracTotRate72$DS_CID_en <- factor(FracTotRate72$DS_CID)
 
 
@@ -139,9 +151,11 @@ p
 download_this(p, output_extension = "svg")
 
 ```
+
 In the plot above we see the different types of femoral fracture, being the most common around 20-24 years old is the shaft of the femur, while hip fracture is the most common among the elderly.
 
 ```{r}
+#| label: total-fracture-rate
 #Hospitalizations RATE by Fracture Type and Age Group (2022) (PORTUGUES)
 FracLabelInd <- FracTotRate %>% arrange (desc(IndFrac)) %>% group_by (DIAG_CAP) %>% filter(DIAG_CAP %in% c("S72", "S52", "S82")) %>% slice (1) 
 
@@ -168,10 +182,11 @@ p
 
 download_this(p, output_extension = "svg")
 ```
+
 Previously we saw in absolute numbers, but considering that above 80 years old population is much less numerous in comparison to the 20s, after we adjust hospitalization rates over population, we observe that the risk is substantially higher in the elderly.
 
-
 ```{r}
+#| label: total-fracture-rate-detailed
 #|fig-width: 10
 
 FracTotRate72$DS_CID_en <- factor(FracTotRate72$DS_CID)
@@ -189,7 +204,9 @@ The same plot, now considering the different types of femoral fracture.
 **Observation:** The plots above consider all hospitalizations, including re-hospitalization for the same surgery.
 
 ### Female
+
 ```{r}
+#| label: female-fracture
 #|fig-width: 10
 FracTotRate <- RD %>% filter (year(DT_INTER) == 2022, SEXO == "Female") %>% 
   group_by(FaixaEtr, DIAG_CAP, DS_CID_CAP) %>%
@@ -235,19 +252,22 @@ p <- ggplot (FracTotRate, aes(x = FaixaEtr, y=n, group = DIAG_CAP,
 p
 download_this(p, output_extension = "svg")
 ```
+
 The three most frequent fracture types for hospitalizations are Femur, Leg including ankle, and forearm. They significantly vary across age groups. But clearly, the most frequent fracture causing hospitalizations, even in absolute number, is femoral fractures in the elderly.
 
-
 ```{r}
+#| label: female-fracture-detailed
 p <- p + geom_area(data = FracTotRate72, aes(x = FaixaEtr, y=n, group = DS_CID_en, fill = DS_CID_en), position = "stack", stat = "identity", alpha = 0.5) +labs(fill = "Femoral Fracture Type")
 
 p
   
 download_this(p, output_extension = "svg")
 ```
+
 In the plot above we see the different types of femoral fracture, being the most common around 20-24 years old is the shaft of the femur, while hip fracture is the most common among the elderly.
 
 ```{r}
+#| label: female-fracture-rate
 #Hospitalizations RATE by Fracture Type and Age Group (2022) (PORTUGUES)
 FracLabelInd <- FracTotRate %>% arrange (desc(IndFrac)) %>% group_by (DIAG_CAP) %>% filter(DIAG_CAP %in% c("S72", "S52", "S82")) 
 
@@ -278,10 +298,11 @@ p <- ggplot (FracTotRate, aes(x = FaixaEtr, y=IndFrac, group = DIAG_CAP,
 p
 download_this(p, output_extension = "svg")
 ```
+
 Previously we saw in absolute numbers, but considering that above 80 years old population is much less numerous in comparison to the 20s, after we adjust hospitalization rates over population, we observe that the risk is substantially higher in the elderly.
 
-
 ```{r}
+#| label: female-fracture-rate-detailed
 #|fig-width: 10
 p <- p + geom_area(data = FracTotRate72, aes(x = FaixaEtr, y=IndFrac, group = DS_CID_en, fill = DS_CID_en), position = "stack", stat = "identity", alpha = 0.5) +labs(fill = "Femoral Fracture Type")
 
@@ -294,7 +315,9 @@ The same plot, now considering the different types of femoral fracture.
 **Observation:** The plots above consider all hospitalizations, including re-hospitalization for the same surgery.
 
 ### Male
+
 ```{r}
+#| label: male-fracture
 #|fig-width: 10
 FracTotRate <- RD %>% filter (year(DT_INTER) == 2022, SEXO == "Male") %>% 
   group_by(FaixaEtr, DIAG_CAP, DS_CID_CAP) %>%
@@ -342,18 +365,21 @@ p <- ggplot (FracTotRate, aes(x = FaixaEtr, y=n, group = DIAG_CAP,
 p
 download_this(p, output_extension = "svg")
 ```
+
 The three most frequent fracture types for hospitalizations are Femur, Leg including ankle, and forearm. They significantly vary across age groups. But clearly, the most frequent fracture causing hospitalizations, even in absolute number, is femoral fractures in the elderly.
 
-
 ```{r}
+#| label: male-fracture-detailed
 p <- p + geom_area(data = FracTotRate72, aes(x = FaixaEtr, y=n, group = DS_CID_en, fill = DS_CID_en), position = "stack", stat = "identity", alpha = 0.5) +labs(fill = "Femoral Fracture Type")
   
 p
 download_this(p, output_extension = "svg")
 ```
+
 In the plot above we see the different types of femoral fracture, being the most common around 20-24 years old is the shaft of the femur, while hip fracture is the most common among the elderly.
 
 ```{r}
+#| label: male-fracture-rate
 #Hospitalizations RATE by Fracture Type and Age Group (2022) (PORTUGUES)
 FracLabelInd <- FracTotRate %>% arrange (desc(IndFrac)) %>% group_by (DIAG_CAP) %>% filter(DIAG_CAP %in% c("S72", "S52", "S82")) %>% slice (1) 
 
@@ -380,10 +406,11 @@ p <- ggplot (FracTotRate, aes(x = FaixaEtr, y=IndFrac, group = DIAG_CAP,
 p
 download_this(p, output_extension = "svg")
 ```
+
 Previously we saw in absolute numbers, but considering that above 80 years old population is much less numerous in comparison to the 20s, after we adjust hospitalization rates over population, we observe that the risk is substantially higher in the elderly.
 
-
 ```{r}
+#| label: male-fracture-rate-detailed
 #|fig-width: 10
 p <- p + geom_area(data = FracTotRate72, aes(x = FaixaEtr, y=IndFrac, group = DS_CID_en, fill = DS_CID_en), position = "stack", stat = "identity", alpha = 0.5) +labs(fill = "Femoral Fracture Type")
 
@@ -399,7 +426,7 @@ The same plot, now considering the different types of femoral fracture.
 ## Hip Fracture and Densitometries
 
 ```{r}
-
+#| label: densitometries-forecast
 densano <- PA %>% 
   group_by(ano) %>% 
   summarise(nDens = sum(PA_QTDPRO), .groups = "keep")
@@ -448,6 +475,7 @@ p <- densano%>%
 p
 download_this(p, output_extension = "svg")
 ```
+
 The provided plot traces the trajectory of densitometry examinations in Brazil from 2008 to 2022. From 2008 to 2014, we witness a robust growth in the number of densitometry exams, with the count more than doubling over this six-year period. This trend, however, seems to taper off around 2014, and in the subsequent eight years leading up to 2022, the growth rate of densitometry exams slowed considerably to around 10%.
 
 Notably, the impact of the COVID-19 pandemic is clearly visible in the significant decline in densitometry exams conducted in 2020. Compared to the preceding year, 2019, the number of exams fell by 32%—a stark testament to the disruption caused by the global health crisis.
@@ -455,7 +483,9 @@ Notably, the impact of the COVID-19 pandemic is clearly visible in the significa
 Encouragingly, the data from 2022 suggests a recovery from this downturn, with the number of densitometry exams appearing to return to pre-pandemic levels. However, the long-term effects of the pandemic-induced interruption in routine health screenings, such as densitometry tests, remain to be fully understood.
 
 Table for the plot above:
+
 ```{r}
+#| label: densitometries-forecast-data
 PA %>% 
   group_by(ano) %>% 
   summarise(nDens = sum(PA_QTDPRO), .groups = "keep")
@@ -471,7 +501,7 @@ densano %>%
 ```
 
 ```{r}
-
+#| label: densitometries-forecast-year
 
 fracano <- RD %>% 
   filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
@@ -519,7 +549,6 @@ p<- fracano %>%
 p
 download_this(p, output_extension = "svg")
 ```
-The plot provided offers a temporal perspective on the incidence of hip fractures and the frequency of densitometry exams in Brazil from 2008 to 2022. Over the seven-year span from 2008 to 2015, we observe a 24% increase in hip fractures. In the subsequent seven-year period from 2015 to 2022, the number of hip fractures escalated further, registering a growth of 32%.
 
 Contrary to expectations based on the 2008-2015 trend, the number of fractures in the latter period exceeded predictions. A potential contributing factor to this unexpected surge could be the observed stagnation in the growth of densitometry exams during the same timeframe.
 
@@ -527,9 +556,10 @@ This plateau in densitometry testing rates suggests a potential unmet need in th
 
 It's important to note, however, that while the data indicates a correlation, further investigation would be required to establish a causal relationship between the stagnation in densitometry exams and the increased incidence of hip fractures.
 
-
 Table for the plot above:
+
 ```{r}
+#| label: hip-fractures-forecast
 fracano %>% 
   mutate('80% Confience Interval' = if_else(is.na(nFracPred), NA_character_, paste(round(nFracPredlo80,0), " - ", round(nFracPredhi80,0))),
          '95% Confience Interval' = if_else(is.na(nFracPred), NA_character_, paste(round(nFracPredlo95,0), " - ", round(nFracPredhi95,0)))) %>% 
@@ -538,8 +568,9 @@ fracano %>%
          'Predicted Number of Fractures' = nFracPred) %>% 
   select(-nFracPredlo80,-nFracPredhi80,-nFracPredlo95,-nFracPredhi95)
 ```
-```{r}
 
+```{r}
+#| label: hip-fractures-forecast-year
 
 fracano <- RD %>% 
   filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
@@ -592,8 +623,8 @@ download_this(p, output_extension = "svg")
 
 When considering rates, the trend has a null growth which means that the growth in absolute numbers comes mainly from population growth. except in the period from 2015 to 2019 in which the growth completely detach from the trend. So it can be confirmed that the exceeding rates seen after 2015 is not caused by population growth, but on actual fracture rates increase.
 
-
 ```{r}
+#| label: hip-fractures-forecast-rate-data
 fracano %>% 
   mutate('80% Confience Interval' = if_else(is.na(nFracPred), NA_character_, paste(round(nFracPredlo80,0), " - ", round(nFracPredhi80,0))),
          '95% Confience Interval' = if_else(is.na(nFracPred), NA_character_, paste(round(nFracPredlo95,0), " - ", round(nFracPredhi95,0)))) %>% 
@@ -604,13 +635,20 @@ fracano %>%
 ```
 
 ## Gender Disparities in Osteoporosis and Densitometries
+
 ```{r}
-p <- RD %>% 
+#| label: hip-fractures-bygender-number
+
+df_fracrate <- RD %>% 
   filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
   filter(ano >= 2008) %>% 
   filter(IDADE >= 50) %>% 
   group_by(ano, SEXO) %>% 
   summarise(nFrac = n_distinct(N_AIH), .groups = "keep") %>% 
+  left_join(popSUSBR %>% group_by(ano, Sexo) %>% filter(word(FaixaEtr,1) >= 50) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("ano", "SEXO" = "Sexo")) %>% 
+  mutate(IndFrac = nFrac*100000/PopSUS)
+
+p <- df_fracrate %>% 
   ggplot(aes(x = ano, y = nFrac, color = SEXO)) +
         geom_line(linewidth = 1) +
         geom_point(size = 3)+
@@ -622,17 +660,12 @@ download_this(p, output_extension = "svg")
 
 
 ```
+
 The plot above is the same, but split by sex. Although it look like the fracture in women has grown faster, this is not the case since the numbers are proportional through all the period as can be seen in the last plot (fracture percentage in men).
 
 ```{r}
-P <- RD %>% 
-  filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
-  filter(ano >= 2008) %>% 
-  filter(IDADE >= 50) %>% 
-  group_by(ano, SEXO) %>% 
-  summarise(nFrac = n_distinct(N_AIH), .groups = "keep") %>% 
-  left_join(popSUSBR %>% group_by(ano, Sexo) %>% filter(word(FaixaEtr,1) >= 50) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("ano", "SEXO" = "Sexo")) %>% 
-  mutate(IndFrac = nFrac*100000/PopSUS) %>% 
+#| label: hip-fractures-bygender-rate
+P <- df_fracrate %>% 
   ggplot(aes(x = ano, y = IndFrac, color = SEXO)) +
         geom_line(linewidth = 1) +
         geom_point(size = 3)+
@@ -644,29 +677,38 @@ P
 download_this(p, output_extension = "svg")
 ```
 
+```{r}
+
+ df_fracrate %>% 
+    pivot_longer(cols = c(nFrac, PopSUS, IndFrac), names_to = "variable", values_to = "value") %>% 
+    pivot_wider(names_from = ano, values_from = value) %>% 
+    mutate(across(where(is.numeric), ~prettyNum(.x, big.mark = ",", scientific = FALSE, trim = TRUE, )))
+```
+
 The same plot in rates.
 
 ### Hip Fracture Rates in men and women
 
 ```{r}
+#| label: hip-fractures-bygender-rates-plot
 FracTotRateSexo <- RD %>% filter (year(DT_INTER) == 2022) %>% 
   #filter(IDADE >= 50) %>% 
   filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
   group_by(FaixaEtr, SEXO) %>%
   summarize(n = n_distinct(N_AIH), .groups = "keep") %>% 
   left_join(popSUSBR %>% filter(ano == 2022) %>% group_by(FaixaEtr, Sexo) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo")) %>%
-  mutate(IndFrac = n*100000/PopSUS)
+  mutate(FracRate = n*100000/PopSUS)
 
 levels(FracTotRateSexo$FaixaEtr) <- c("0 to 4 years", "5 to 9 years", "10 to 14 years", "15 to 19 years", "20 to 24 years", "25 to 29 years", "30 to 34 years", "35 to 39 years", "40 to 44 years", "45 to 49 years", "50 to 54 years", "55 to 59 years", "60 to 64 years", "65 to 69 years", "70 to 74 years", "75 to 79 years", "80 years or more")
 
-FracRate <- ggplot(FracTotRateSexo, aes(x = FaixaEtr, y = if_else(SEXO == "Male", -IndFrac,IndFrac), fill = SEXO)) + 
+FracRate <- ggplot(FracTotRateSexo, aes(x = FaixaEtr, y = if_else(SEXO == "Male", -FracRate,FracRate), fill = SEXO)) + 
   geom_bar(data = subset (FracTotRateSexo, SEXO == "Female"), stat = "identity") + 
   geom_bar(data = subset (FracTotRateSexo, SEXO == "Male"), stat = "identity") + 
-  scale_y_continuous(labels = abs, limits = max(FracTotRateSexo$IndFrac) * c(-1,1))  + 
+  scale_y_continuous(labels = abs, limits = max(FracTotRateSexo$FracRate) * c(-1,1))  + 
   coord_flip() + 
   scale_fill_brewer(palette = "Set1") + 
   theme_bw() +
-  labs(x = "Age Group", y = "Hip Fracture Rate per 100,000 population", title = "Hip Fracture Rate by Age Group and Sex",
+  labs(x = "Age Group", y = "Hip Fracture Rate per 100,000 population", title = "Hip Fracture Rate by Age Group and Sex. Brazil 2022",
         caption = "Source: IBGE, ANS, SIH-SUS (2022)", fill = "Gender")
 
 FracRate
@@ -684,6 +726,7 @@ Furthermore, our findings indicate that hip fractures in men should often be cla
 In conclusion, these data suggest a need to revisit assumptions about gender differences in bone health and fracture risk, and to consider more carefully the role of bone density in fracture risk among older men.
 
 ```{r}
+#| label: hip-fractures-bygender-median-age
 RD %>% 
   filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
   group_by(SEXO) %>%
@@ -692,27 +735,29 @@ RD %>%
             perc75 = quantile(IDADE, probs = 0.75))
 ```
 
-
 ```{r}
+#| label: hip-fractures-bygender-rate-age-groups
 FracTotRateSexo %>% 
-  select(FaixaEtr, SEXO, IndFrac) %>% 
-  pivot_wider(names_from = SEXO, values_from = IndFrac) %>%
+  select(FaixaEtr, SEXO, FracRate) %>% 
+  pivot_wider(names_from = SEXO, values_from = FracRate) %>%
   mutate(FaixaEtr = fct_relevel(FaixaEtr, "0 to 4 years", "5 to 9 years", "10 to 14 years", "15 to 19 years", "20 to 24 years", "25 to 29 years", "30 to 34 years", "35 to 39 years", "40 to 44 years", "45 to 49 years", "50 to 54 years", "55 to 59 years", "60 to 64 years", "65 to 69 years", "70 to 74 years", "75 to 79 years", "80 years or more"))
 ```
 
 Fracture rate in people over 70 years old
+
 ```{r}
+#| label: hip-fractures-bygender-rate-table
 #Fracture ratio for men and women over 70 years old grouped by gender
 FracTotRateSexo %>% 
   filter(FaixaEtr %in% c("70 to 74 years", "75 to 79 years", "80 years or more")) %>% 
   group_by(SEXO) %>%
   summarize(n = sum(n), PopSUS = sum(PopSUS), .groups = "keep") %>%
-  mutate(IndFrac = n*100000/PopSUS)
+  mutate(FracRate = n*100000/PopSUS)
 
 ```
 
-
 ```{r}
+#| label: hip-fractures-odds_r-table
 FracRateOR <- FracTotRateSexo %>% 
   group_by(SEXO) %>%
   arrange(SEXO, FaixaEtr) %>%
@@ -762,7 +807,7 @@ FracRateOR
 ```
 
 ```{r}
-
+#| label: hip-fractures-odds_r-plot
 P <- FracRateOR %>% 
   ggplot(aes(x = FaixaEtr, y = OR_ant, ymin = ORL_ant, ymax = ORH_ant, color = SEXO, label = format(OR_ant, nsmall = 2 , digits = 2))) +
   geom_point() +
@@ -778,7 +823,7 @@ P <- FracRateOR %>%
   scale_y_log10() +
   labs(y = "Odds Ratio in relation to the previous age group",
         x = "Age Range",
-        title = "Odds Ratio of femur fractures in men and women",
+        title = "Odds Ratio of hip fractures in men and women",
         subtitle = "Brazil, 2022", color = "Sex")
 
 P
@@ -788,7 +833,7 @@ download_this(P, output_extension = "svg")
 ```
 
 ```{r}
-
+#| label: hip-fractures-odds_r-plot-previous-age
 P <- FracRateOR %>% 
   ggplot(aes(x = FaixaEtr, y = OR_tot, ymin = ORL_tot, ymax = ORH_tot, color = SEXO, label = format(OR_tot, nsmall = 2 , digits = 2))) +
   geom_point() +
@@ -807,7 +852,7 @@ P <- FracRateOR %>%
   
   labs(y = "Odds Ratio in relation to previous ages",  
         x = "Age Range",
-        title = "Odds Ratio of femur fractures in men and women",
+        title = "Odds Ratio of hip fractures in men and women",
         subtitle = "Brazil, 2022", color = "Sex")
 
 P
@@ -817,20 +862,22 @@ download_this(P, output_extension = "svg")
 ```
 
 ### Densitometry Rates in men and women
+
 ```{r}
+#| label: densitometry-gender-age-group-plot
 DensTotRateSexo <- PA %>% filter (year(DATA) == 2022) %>% 
   filter(SEXO != "Undefined") %>% 
   group_by(FaixaEtr, SEXO) %>%
   summarize(n = sum(PA_QTDPRO), .groups = "keep") %>% 
   left_join(popSUSBR %>% filter(ano == 2022) %>% group_by(FaixaEtr, Sexo) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo")) %>%
-  mutate(IndDens = n*100000/PopSUS)
+  mutate(DensRate = n*100000/PopSUS)
 
 levels(DensTotRateSexo$FaixaEtr) <- c("0 to 4 years", "5 to 9 years", "10 to 14 years", "15 to 19 years", "20 to 24 years", "25 to 29 years", "30 to 34 years", "35 to 39 years", "40 to 44 years", "45 to 49 years", "50 to 54 years", "55 to 59 years", "60 to 64 years", "65 to 69 years", "70 to 74 years", "75 to 79 years", "80 years or more")
 
-DensRate <- ggplot(DensTotRateSexo, aes(x = FaixaEtr, y = if_else(SEXO == "Male", -IndDens,IndDens), fill = SEXO)) + 
+DensRate <- ggplot(DensTotRateSexo, aes(x = FaixaEtr, y = if_else(SEXO == "Male", -DensRate,DensRate), fill = SEXO)) + 
   geom_bar(data = subset (DensTotRateSexo, SEXO == "Female"), stat = "identity") + 
   geom_bar(data = subset (DensTotRateSexo, SEXO == "Male"), stat = "identity") + 
-  scale_y_continuous(labels = abs, limits = max(DensTotRateSexo$IndDens) * c(-1,1))  + 
+  scale_y_continuous(labels = abs, limits = max(DensTotRateSexo$DensRate) * c(-1,1))  + 
   coord_flip() + 
   scale_fill_brewer(palette = "Set1") + 
   theme_bw() +
@@ -848,21 +895,24 @@ Furthermore, when these figures are compared with the rates of hip fractures, an
 
 This discrepancy suggests that the current approach to bone health monitoring may not be adequately addressing the needs of men, and invites a closer look at the gender dynamics of healthcare accessibility and utilization.
 
+**Densitometry rate in men and women over 70 years old**
 ```{r}
+#| label: densitometry-gender-over70-table
 # Densitometry rate in men and women over 70 years old
 DensTotRateSexo %>% 
   filter(FaixaEtr %in% c("60 to 64 years", "65 to 69 years","70 to 74 years", "75 to 79 years", "80 years or more")) %>% 
   group_by(SEXO) %>%
   summarize(n = sum(n), PopSUS = sum(PopSUS), .groups = "keep") %>%
-  mutate(IndDens = n*100000/PopSUS)
+  mutate(DensRate = n*100000/PopSUS)
 ```
 
-
 ### Rates over time
-```{r}
 
-DensRateSex <- PA %>% 
-  filter(SEXO != "Indefinido") %>% 
+```{r}
+#| label: dens-frac-rates-disparity
+
+dens_rate_raw <- PA %>% 
+  filter(SEXO != "Undefined") %>% 
   group_by(FaixaEtr, SEXO, ano) %>%
   summarize(n = sum(PA_QTDPRO), .groups = "keep") %>% 
   left_join(popSUSBR %>% group_by(FaixaEtr, Sexo, ano) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo", "ano")) %>% 
@@ -870,14 +920,16 @@ DensRateSex <- PA %>%
   group_by(SEXO, ano) %>% 
   summarise(n = sum(n),
             PopSUS = sum(PopSUS), .groups = "keep") %>% 
-  mutate(DensRate = n*100000/PopSUS) %>% 
+  mutate(DensRate = n*100000/PopSUS)
+
+
+DensRateSex <- dens_rate_raw %>% 
   pivot_wider(id_cols = ano, names_from = SEXO, values_from = DensRate) %>% 
   mutate(MaleRateDens = Male/Female)
 
-
 FracRateSex <-RD %>% 
   filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
-  filter(SEXO != "Indefinido") %>% 
+  filter(SEXO != "Undefined") %>% 
   filter(IDADE >= 50) %>% 
   group_by(FaixaEtr, SEXO, ano) %>%
   summarize(n = n_distinct(N_AIH), .groups = "keep") %>% 
@@ -909,7 +961,8 @@ p
   
 download_this(p, output_extension = "svg")
 ```
-*The interpretation of a rate ratio of 0.6 is that for every 100 hip fracture in women, there are 60 in men.
+
+\*The interpretation of a rate ratio of 0.6 is that for every 100 hip fracture in women, there are 60 in men.
 
 The graph presented above illustrates a significant disparity between the incidence of hip fractures and the rate of preventative bone density testing in men. While the rate ratio of hip fractures occurring in men remains relatively stable at around 60, the ratio of men undergoing bone density scans is markedly lower, hovering below 10%.
 
@@ -917,9 +970,41 @@ Despite a modest upward trend over time in the rate of bone density scans among 
 
 Thus, these findings highlight an essential need for improved bone health strategies that better align preventative measures, like bone density tests, with the actual risks faced by different population groups. This may involve increasing awareness about the risk of fractures in men and emphasizing the importance of preventative measures like bone density scans.
 
+**Densitometry numbers >50**
+```{r}
+#| label: dens-frac-rates-disparity_table
+dens_rate_raw %>% 
+  mutate(SEXO = droplevels(SEXO)) %>%
+  pivot_longer(cols = c(n, PopSUS, DensRate), names_to = "variable", values_to = "value") %>% 
+  pivot_wider(names_from = ano, values_from = value) %>% 
+  mutate(across(where(is.numeric), ~prettyNum(.x, big.mark = ",", scientific = FALSE, trim = TRUE, )))
+```
+
+**Densitometry Numbers for Male >70 and Female >65**
+```{r}
+#| label: dens-numbers_segmented
+dens_rate_raw_segmented <- PA %>% 
+  filter(SEXO != "Undefined") %>% 
+  group_by(FaixaEtr, SEXO, ano) %>%
+  summarize(n = sum(PA_QTDPRO), .groups = "keep") %>% 
+  left_join(popSUSBR %>% group_by(FaixaEtr, Sexo, ano) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("FaixaEtr", "SEXO" = "Sexo", "ano")) %>% 
+  filter((SEXO == "Female" & as.numeric(word(FaixaEtr))>=65) | (SEXO == "Male" & as.numeric(word(FaixaEtr))>=70)) %>% 
+  group_by(SEXO, ano) %>% 
+  summarise(n = sum(n),
+            PopSUS = sum(PopSUS), .groups = "keep") %>% 
+  mutate(DensRate = n*100000/PopSUS)
+
+dens_rate_raw_segmented %>% 
+  mutate(SEXO = droplevels(SEXO)) %>%
+  pivot_longer(cols = c(n, PopSUS, DensRate), names_to = "variable", values_to = "value") %>% 
+  pivot_wider(names_from = ano, values_from = value) %>% 
+  mutate(across(where(is.numeric), ~prettyNum(.x, big.mark = ",", scientific = FALSE, trim = TRUE, )))
+``` 
+
 ## Bone Density Scanners
 
 ```{r}
+#| label: dx-scanners
 p <- EQ %>% 
   group_by(year = year(DATA), SUS) %>% 
   summarise(QT = sum(QT),
@@ -936,12 +1021,13 @@ download_this(p, output_extension = "svg")
 ```
 
 ```{r}
+#| label: dx-scanners-rate
 dx_rate <- EQ %>% 
   group_by(year = year(DATA), SUS) %>% 
   summarise(QT = sum(QT),
             QT_USO = sum(QT_USO), .groups = "keep") %>% 
-  left_join(popSUS %>% group_by(ano) %>% filter(word(FaixaEtr,1) >= 50) %>%
-              summarise(SUS = sum(PopSUS), `Non-SUS` = sum(PopPlS), .groups = "keep") %>% 
+  left_join(popSUSBR %>% group_by(ano) %>% filter(word(FaixaEtr,1) >= 50) %>%
+              summarise(SUS = sum(PopSUS), `Non-SUS` = sum(PopANS), .groups = "keep") %>% 
               pivot_longer(cols = c("SUS", "Non-SUS"), names_to = "system", values_to = "Pop")
               , by = c("year"= "ano", "SUS" = "system")) %>% 
   mutate(densrate = QT_USO*100000/Pop)
@@ -960,9 +1046,8 @@ p
 download_this(p, output_extension = "svg")
 ```
 
-
-
 ```{r}
+#| label: dx-scanners-table
 rateSUS <- dx_rate %>%  filter(year == 2022) %>% ungroup() %>% select (SUS, densrate) %>% pivot_wider(names_from = SUS, values_from = densrate) %>% 
   mutate (n = SUS/`Non-SUS`) %>% pull(n)
 
@@ -973,9 +1058,10 @@ dx_rate
 
 In 2022, there was {round(1/rateSUS,1)} times more Densitometry Scans in private healthcare in comparison to SUS. The Densitometry Scans rate is stable in SUS since 2015.
 
-
 ## Table with procedures codes
+Number of hip fractures in SUS:
 ```{r}
+#| label: raw-table-hip-frac
 #Generate table with procedures codes used in the Hip Fracture analysis RD
 #Filtering only the procedures used in the analysis
 
@@ -987,9 +1073,11 @@ RD %>%
   group_by(ano, SEXO) %>% 
   summarise(n = n(), .groups = "keep") %>% 
   pivot_wider(names_from = SEXO, values_from = n)
+```
 
-
-
+Median of age in hip fracture hospitalisations:
+```{r}
+#| label: raw-table-hip-frac-age
 #Median of age in hip fracture hospitalisations
 RD %>% 
   filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
@@ -1002,3 +1090,54 @@ RD %>%
 
 ```
 
+# Adjusted Rates
+
+```{r}
+#| label: adjusted-frac-rate
+FracStdRate <- RD %>% 
+  filter(UNICO & CD_CID %in% c("S720","S721","S722")) %>% 
+  filter(ano >= 2008) %>% 
+  filter(IDADE >= 50) %>% 
+  group_by(ano, SEXO, FaixaEtr) %>% 
+  summarise(nFrac = n_distinct(N_AIH), .groups = "keep") %>% 
+  left_join(popSUSBR %>% group_by(ano, Sexo, FaixaEtr) %>% filter(word(FaixaEtr,1) >= 50) %>% summarise(PopSUS = sum(PopSUS), .groups = "keep"), by = c("ano", "SEXO" = "Sexo", "FaixaEtr")) %>% 
+  group_by(ano, FaixaEtr) %>%
+  summarise(PopSUS = sum(PopSUS),
+            nFrac = sum(nFrac), .groups = "keep") %>%
+  left_join(std_WHO, by = "FaixaEtr") %>%
+  mutate(act_rate = nFrac/PopSUS,
+         WHO_n = act_rate * WHO20002025) %>%
+  group_by(ano) %>%
+  summarise(PopSUS = sum(PopSUS),
+            nFrac = sum(nFrac),
+            WHO20002025 = sum(WHO20002025),
+            WHO_n = sum(WHO_n)) %>% 
+  mutate(std_rate = WHO_n*100000/WHO20002025,
+         act_rate = nFrac*100000/PopSUS)
+
+FracStdRate %>%
+  ggplot(aes(x = ano)) +
+  geom_line(aes(y = std_rate, color = "Standardised Rate"), linewidth = 1) + 
+  geom_line(aes(y = act_rate, color = "Actual Rate"), linewidth = 1) +
+  theme(axis.text.x = element_text(angle = 20, hjust = 1)) +
+labs(caption = "Source: SIH-SUS, IBGE, ANS",
+     subtitle = "Considering Population over 50 years old", 
+     title = "Standardised vs Actual Hip Fracture Rates - Brazil, 2008-2022",
+     x = "Year", y = "Rate per 100,000", color = "Rate Type") +
+theme_bw() +
+scale_y_continuous(limits = c(0, NA))
+```
+
+```{r}
+#| label: adjusted-frac-rate-table
+#Create a piovt table of FracStdRate with ano as column
+FracStdRate %>%
+pivot_longer(col= -ano) %>%
+pivot_wider(names_from = ano, values_from = value) %>% 
+mutate(across(everything(), ~formatC(., format = "f", digits = 0)))
+
+```
+
+The above plot and table, describes the difference between the actual and standardised rates of hip fractures in Brazil from 2008 to 2022. The actual rate is the number of hip fractures per 100,000 people aged 50 and over in Brazil. The standardised rate is the number of hip fractures per 100,000 people aged 50 and over in Brazil, adjusted for the age distribution of the world population in 2000-2025. The actual rate is the same as the standardised rate in 2008, but it increases in the following years. The actual rate is `r format(FracStdRate %>% filter(ano == 2022) %>% pull(act_rate), format = "f", digits = 4)` hip fractures per 100,000 people aged 50 and over in Brazil in 2022. The standardised rate is `r format(FracStdRate %>% filter(ano == 2022) %>% pull(std_rate), format = "f", digits = 4)` hip fractures per 100,000 people aged 50 and over in Brazil in 2022. This means that the aging of population is only responsible for a small part of the increase in hip fractures in Brazil.
+
+Of the `r format(((FracStdRate %>% filter(ano == 2022) %>% pull(act_rate)/FracStdRate %>% filter(ano == 2008) %>% pull(act_rate))-1)*100,digits = 3)`% growth in hip fractures rate from 2008 to 2022, only `r format(((FracStdRate %>% filter(ano == 2022) %>% pull(act_rate)/FracStdRate %>% filter(ano == 2008) %>% pull(act_rate))/(FracStdRate %>% filter(ano == 2022) %>% pull(std_rate)/FracStdRate %>% filter(ano == 2008) %>% pull(std_rate))-1)*100,digits = 3)`% of the growth can be explained by the aging of the population.
